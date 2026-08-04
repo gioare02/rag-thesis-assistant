@@ -4,8 +4,8 @@ from typing import List
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from models import SearchResult
-from config import LLM_MODEL_NAME
+from src.models import SearchResult
+from src.config import LLM_MODEL_NAME
 
 
 load_dotenv()

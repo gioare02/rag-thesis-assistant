@@ -1,7 +1,7 @@
 from pathlib import Path
 import fitz  # type: ignore # PyMuPDF
 from typing import List
-from models import Page
+from src.models import Page
 
 def load_pdf(pdf_path: str)  -> List[Page]:
     """

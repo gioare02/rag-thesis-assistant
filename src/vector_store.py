@@ -6,8 +6,8 @@ import json
 import faiss
 import numpy as np
 
-from models import Chunk
-from config import CHUNK_SIZE, CHUNK_OVERLAP
+from src.models import Chunk
+from src.config import CHUNK_SIZE, CHUNK_OVERLAP
 
 
 def build_faiss_index(embeddings: np.ndarray) -> faiss.Index:

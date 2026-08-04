@@ -1,6 +1,6 @@
 from typing import List
-from models import Page, Chunk
-from config import CHUNK_SIZE, CHUNK_OVERLAP
+from src.models import Page, Chunk
+from src.config import CHUNK_SIZE, CHUNK_OVERLAP
 
 def split_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> List[str]:
     """

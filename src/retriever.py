@@ -3,10 +3,9 @@ from typing import List
 import faiss
 from sentence_transformers import SentenceTransformer
 
-from embeddings import embed_texts
-from models import Chunk, SearchResult
-
-from config import TOP_K
+from src.embeddings import embed_texts
+from src.models import Chunk, SearchResult
+from src.config import TOP_K
 
 
 def retrieve_chunks(

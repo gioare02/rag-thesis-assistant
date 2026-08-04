@@ -3,9 +3,8 @@ from typing import List
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-from models import Chunk
-
-from config import EMBEDDING_MODEL_NAME, CHUNK_SIZE, CHUNK_OVERLAP
+from src.models import Chunk
+from src.config import EMBEDDING_MODEL_NAME, CHUNK_SIZE, CHUNK_OVERLAP
 
 
 def load_embedding_model(
