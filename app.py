@@ -3,7 +3,12 @@ from pathlib import Path
 import streamlit as st
 
 from src.bm25_retriever import build_bm25_retriever
-from src.config import TOP_K
+from src.config import (
+    HYBRID_CANDIDATES,
+    RERANK_TOP_K,
+    TOP_K,
+)
+from src.reranker import load_reranker, rerank_results
 from src.embeddings import load_embedding_model
 from src.hybrid_retriever import fuse_results_rrf
 from src.indexing import build_vector_store
@@ -29,32 +34,22 @@ st.set_page_config(
 
 @st.cache_resource
 def load_resources():
-    """
-    Load the expensive RAG resources only once.
-
-    Returns:
-        embedding model
-        FAISS index
-        document chunks
-        OpenAI client
-        BM25 retriever
-    """
-
     embedding_model = load_embedding_model()
+    reranker = load_reranker()
 
     index, chunks = load_vector_store()
-
     client = create_client()
 
     documents = chunks_to_documents(chunks)
 
     bm25_retriever = build_bm25_retriever(
         documents=documents,
-        top_k=10,
+        top_k=HYBRID_CANDIDATES,
     )
 
     return (
         embedding_model,
+        reranker,
         index,
         chunks,
         client,
@@ -95,6 +90,7 @@ if "messages" not in st.session_state:
 try:
     (
         embedding_model,
+        reranker,
         index,
         chunks,
         client,
@@ -253,8 +249,7 @@ for message in st.session_state.messages:
                     )
 
                     st.caption(
-                        f"Hybrid RRF score: "
-                        f"{source['score']:.6f}"
+                        f"Reranker score: {source['score']:.6f}"
                     )
 
                     st.write(source["text"])
@@ -300,19 +295,24 @@ if question:
                 model=embedding_model,
                 index=index,
                 chunks=chunks,
-                top_k=10,
+                top_k=HYBRID_CANDIDATES,
             )
 
-            # 3. Lexical retrieval with LangChain BM25
             lexical_results = bm25_retriever.invoke(
                 rewritten_query
             )
 
-            # 4. Fuse FAISS and BM25 rankings
-            results = fuse_results_rrf(
+            hybrid_results = fuse_results_rrf(
                 semantic_results=semantic_results,
                 lexical_results=lexical_results,
-                top_k=TOP_K,
+                top_k=HYBRID_CANDIDATES,
+            )
+
+            results = rerank_results(
+                query=rewritten_query,
+                results=hybrid_results,
+                reranker=reranker,
+                top_k=RERANK_TOP_K,
             )
 
             # 5. Generate grounded answer
@@ -344,8 +344,7 @@ if question:
                 )
 
                 st.caption(
-                    f"Hybrid RRF score: "
-                    f"{result.score:.6f}"
+                    f"Reranker score: {result.score:.6f}"
                 )
 
                 st.write(result.chunk.text)
@@ -374,11 +373,13 @@ Domanda
    ↓
 Query rewriting
    ↓
-FAISS top 10 + LangChain BM25 top 10
+FAISS top 10 + BM25 top 10
    ↓
-Reciprocal Rank Fusion
+RRF top 10
    ↓
-Top-k finali
+CrossEncoder reranker
    ↓
-LLM con fonti
+Top 5
+   ↓
+LLM
 '''
