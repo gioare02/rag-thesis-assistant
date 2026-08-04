@@ -6,3 +6,7 @@ pandas
 streamlit
 python-dotenv
 openai
+langchain
+langchain-community
+langchain-openai
+rank-bm25

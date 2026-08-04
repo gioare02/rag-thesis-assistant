@@ -72,6 +72,11 @@ def chunk_pages(pages: List[Page], chunk_size: int = 300, overlap: int = 50) -> 
 
     return chunks
 
+
+
+
+######################### TEST ##########################
+
 if __name__ == "__main__":
     from ingest import load_pdf
     pages = load_pdf("data/thesis.pdf")

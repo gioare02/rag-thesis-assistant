@@ -50,6 +50,10 @@ def retrieve_chunks(
     return results
 
 
+
+
+######################### TEST ##########################
+
 if __name__ == "__main__":
     from embeddings import load_embedding_model
     from vector_store import load_vector_store

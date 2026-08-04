@@ -97,6 +97,10 @@ def load_vector_store(
     return index, chunks
 
 
+
+
+######################### TEST ##########################
+
 if __name__ == "__main__":
     from chunking import chunk_pages
     from embeddings import embed_texts, load_embedding_model

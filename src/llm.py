@@ -93,6 +93,61 @@ def generate_answer(
 
     return response.output_text
 
+from typing import List
+
+
+def rewrite_query(
+    question: str,
+    chat_history: List[dict],
+    client: OpenAI,
+    model: str = LLM_MODEL_NAME,
+) -> str:
+    """
+    Rewrite the user's question into a standalone query.
+    """
+
+    if not chat_history:
+        return question
+
+    history = []
+
+    for message in chat_history[-6:]:
+
+        history.append(
+            f"{message['role']}: {message['content']}"
+        )
+
+    history_text = "\n".join(history)
+
+    prompt = f"""
+        You are helping a retrieval system.
+
+        Rewrite the user's latest question so that it becomes
+        a standalone question.
+
+        Do NOT answer it.
+
+        Keep it concise.
+
+        Conversation:
+        {history_text}
+
+        Latest question:
+        {question}
+
+        Standalone question:
+        """
+
+    response = client.responses.create(
+        model=model,
+        input=prompt,
+    )
+
+    return response.output_text.strip()
+
+
+######################### TEST ##########################
+
 if __name__ == "__main__":
     from embeddings import load_embedding_model
     from retriever import retrieve_chunks

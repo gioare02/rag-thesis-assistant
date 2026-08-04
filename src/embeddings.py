@@ -45,6 +45,10 @@ def embed_texts(
     return embeddings.astype(np.float32)
 
 
+
+
+######################### TEST ##########################
+
 if __name__ == "__main__":
     from chunking import chunk_pages
     from ingest import load_pdf
