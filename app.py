@@ -23,6 +23,12 @@ def load_resources():
     return embedding_model, index, chunks, client
 
 st.title("📚 ThesisRAG")
+with st.sidebar:
+    st.header("Settings")
+
+    if st.button("Clear conversation"):
+        st.session_state.messages = []
+        st.rerun()
 st.caption(
     "Ask questions about the thesis. "
     "Answers are generated only from retrieved document context."
@@ -42,6 +48,25 @@ if "messages" not in st.session_state:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+
+        if message["role"] == "assistant" and "sources" in message:
+            with st.expander("Retrieved sources"):
+                for rank, source in enumerate(
+                    message["sources"],
+                    start=1,
+                ):
+                    st.markdown(
+                        f"**Source {rank} — "
+                        f"{source['document']}, "
+                        f"page {source['page']}**"
+                    )
+
+                    st.caption(
+                        f"Similarity score: {source['score']:.4f}"
+                    )
+
+                    st.write(source["text"])
+                    st.divider()
 
 question = st.chat_input("Ask a question about the thesis")
 
@@ -94,5 +119,14 @@ if question:
         {
             "role": "assistant",
             "content": answer,
+            "sources": [
+                {
+                    "document": result.chunk.document,
+                    "page": result.chunk.page,
+                    "score": result.score,
+                    "text": result.chunk.text,
+                }
+                for result in results
+            ],
         }
     )
