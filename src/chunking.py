@@ -1,5 +1,5 @@
 from typing import List
-
+from models import Page, Chunk
 
 def split_text(text: str, chunk_size: int = 300, overlap: int = 50) -> List[str]:
     """
@@ -44,7 +44,7 @@ def split_text(text: str, chunk_size: int = 300, overlap: int = 50) -> List[str]
 
     return chunks
 
-def chunk_pages(pages: List[dict], chunk_size: int = 300, overlap: int = 50) -> List[dict]:
+def chunk_pages(pages: List[Page], chunk_size: int = 300, overlap: int = 50) -> List[Chunk]:
     """
     Split all pages into chunks while preserving metadata.
     """
@@ -54,18 +54,18 @@ def chunk_pages(pages: List[dict], chunk_size: int = 300, overlap: int = 50) -> 
 
     for page in pages:
         page_chunks = split_text(
-            text=page["text"],
+            text=page.text,
             chunk_size=chunk_size,
             overlap=overlap,
         )
         for chunk_text in page_chunks:
             chunks.append(
-                {
-                    "chunk_id": chunk_id,
-                    "document": page["document"],
-                    "page": page["page"],
-                    "text": chunk_text,
-                }
+                Chunk(
+                    chunk_id=chunk_id,
+                    document=page.document,
+                    page=page.page,
+                    text=chunk_text,
+                )
             )
             chunk_id += 1
 

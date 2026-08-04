@@ -4,6 +4,9 @@ from typing import List
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from models import SearchResult
+
+
 load_dotenv()
 
 
@@ -11,66 +14,83 @@ def create_client() -> OpenAI:
     """
     Create an OpenAI client using the API key stored in .env.
     """
+
     api_key = os.getenv("OPENAI_API_KEY")
-    if api_key is None:
+
+    if not api_key:
         raise ValueError(
-            "OPENAI_API_KEY not found in .env"
+            "OPENAI_API_KEY not found. Add it to the .env file."
         )
+
     return OpenAI(api_key=api_key)
 
 
-def build_context(chunks: List[dict]) -> str:
+def build_context(results: List[SearchResult]) -> str:
     """
-    Convert retrieved chunks into a prompt context.
+    Convert retrieved search results into structured context.
     """
-    context = []
-    for chunk in chunks:
-        context.append(
-            f"""
-Document: {chunk['document']}
-Page: {chunk['page']}
 
-{chunk['text']}
-"""
+    context_blocks: List[str] = []
+
+    for rank, result in enumerate(results, start=1):
+        chunk = result.chunk
+
+        context_blocks.append(
+            (
+                f"[Source {rank}]\n"
+                f"Document: {chunk.document}\n"
+                f"Page: {chunk.page}\n"
+                f"Similarity score: {result.score:.4f}\n\n"
+                f"{chunk.text}"
+            )
         )
-    # concatena tutti i chunk in un’unica stringa.
-    return "\n\n--------------------\n\n".join(context)
+
+    return "\n\n--------------------\n\n".join(context_blocks)
 
 
 def generate_answer(
     question: str,
-    chunks: List[dict],
+    results: List[SearchResult],
     client: OpenAI,
     model: str = "gpt-5",
 ) -> str:
     """
-    Generate an answer grounded on the retrieved chunks.
+    Generate an answer grounded in the retrieved context.
     """
 
-    context = build_context(chunks)
+    if not question.strip():
+        raise ValueError("question cannot be empty")
+
+    if not results:
+        return "I do not have enough information in the provided documents."
+
+    context = build_context(results)
+
     prompt = f"""
-You are an academic assistant.
+        You are an academic research assistant.
 
-Answer ONLY using the provided context.
+        Answer the question using only the context provided below.
 
-If the answer is not contained in the context,
-say that you do not have enough information.
+        Rules:
+        - Do not use external knowledge.
+        - If the context is insufficient, clearly say so.
+        - Cite the relevant source using the format [Source 1], [Source 2], etc.
+        - Do not mention similarity scores in the answer.
+        - Keep the answer clear and concise.
 
-Context:
+        Context:
+        {context}
 
-{context}
+        Question:
+        {question}
+        """
 
-Question:
-
-{question}
-"""
     response = client.responses.create(
         model=model,
         input=prompt,
     )
+
     return response.output_text
-
-
 
 if __name__ == "__main__":
     from embeddings import load_embedding_model
@@ -80,9 +100,10 @@ if __name__ == "__main__":
     client = create_client()
     embedding_model = load_embedding_model()
     index, chunks = load_vector_store()
-    question = "What is the main contribution of this thesis?"
 
-    retrieved_chunks = retrieve_chunks(
+    question = "Why was FinBERT used for sentiment analysis?"
+
+    results = retrieve_chunks(
         query=question,
         model=embedding_model,
         index=index,
@@ -90,15 +111,27 @@ if __name__ == "__main__":
         top_k=5,
     )
 
+    print("Retrieved sources")
+    print("=" * 80)
+
+    for result in results:
+        print(
+            f"Page {result.chunk.page} | "
+            f"Score {result.score:.4f}"
+        )
+        print(result.chunk.text[:300])
+        print("-" * 80)
+
     answer = generate_answer(
         question=question,
-        chunks=retrieved_chunks,
+        results=results,
         client=client,
     )
 
+    print()
+    print("Answer")
+    print("=" * 80)
     print(answer)
-
-
 
 '''
 User

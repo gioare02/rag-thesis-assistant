@@ -1,8 +1,9 @@
 from pathlib import Path
 import fitz  # type: ignore # PyMuPDF
 from typing import List
+from models import Page
 
-def load_pdf(pdf_path: str)  -> List[dict]:
+def load_pdf(pdf_path: str)  -> List[Page]:
     """
     Read a PDF and return one record per page.
     Returns
@@ -20,11 +21,11 @@ def load_pdf(pdf_path: str)  -> List[dict]:
         page = pdf.load_page(page_number)
         text = page.get_text()
         pages.append(
-            {
-                "document": Path(pdf_path).name,
-                "page": page_number + 1,
-                "text": text,
-            }
+            Page(
+                document=Path(pdf_path).name,
+                page=page_number + 1,
+                text=text,
+            )
         )
     pdf.close()
     return pages

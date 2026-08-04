@@ -4,15 +4,16 @@ import faiss
 from sentence_transformers import SentenceTransformer
 
 from embeddings import embed_texts
+from models import Chunk, SearchResult
 
 
 def retrieve_chunks(
     query: str,
     model: SentenceTransformer,
     index: faiss.Index,
-    chunks: List[dict],
+    chunks: List[Chunk],
     top_k: int = 5,
-) -> List[dict]:
+) -> List[SearchResult]:
     """
     Retrieve the most relevant chunks for a query.
     """
@@ -25,29 +26,25 @@ def retrieve_chunks(
 
     top_k = min(top_k, index.ntotal)
 
-    # Trasforma la domanda in un vettore della stessa dimensione dei chunk:
     query_embedding = embed_texts(
         texts=[query],
         model=model,
     )
 
-    # scores  = similarità (non è una probabilità ma cosine similarity:
-    # * vicino a 1 → molto simile;
-    # * vicino a 0 → poca relazione;
-    # * negativo → significato potenzialmente opposto o molto distante.
-    # indices = posizioni dei chunk
     scores, indices = index.search(
         query_embedding,
         top_k,
     )
 
-    results = []
+    results: List[SearchResult] = []
 
     for score, index_position in zip(scores[0], indices[0]):
-        # recuperiamo testo e metadati e aggiungiamo il punteggio di similarità.
-        chunk = chunks[index_position].copy()
-        chunk["score"] = float(score)
-        results.append(chunk)
+        results.append(
+            SearchResult(
+                chunk=chunks[int(index_position)],
+                score=float(score),
+            )
+        )
 
     return results
 
@@ -58,6 +55,7 @@ if __name__ == "__main__":
 
     model = load_embedding_model()
     index, chunks = load_vector_store()
+
     query = "Why was FinBERT used for sentiment analysis?"
 
     results = retrieve_chunks(
@@ -73,8 +71,15 @@ if __name__ == "__main__":
 
     for rank, result in enumerate(results, start=1):
         print(f"Result {rank}")
-        print(f"Score: {result['score']:.4f}")
-        print(f"Document: {result['document']}")
-        print(f"Page: {result['page']}")
-        print(f"Text: {result['text'][:500]}")
+        print(f"Score: {result.score:.4f}")
+        print(f"Document: {result.chunk.document}")
+        print(f"Page: {result.chunk.page}")
+        print(f"Text: {result.chunk.text[:500]}")
         print("-" * 80)
+
+
+    # scores  = similarità (non è una probabilità ma cosine similarity:
+    # * vicino a 1 → molto simile;
+    # * vicino a 0 → poca relazione;
+    # * negativo → significato potenzialmente opposto o molto distante.
+    # indices = posizioni dei chunk
