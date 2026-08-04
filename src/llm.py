@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from models import SearchResult
+from config import LLM_MODEL_NAME
 
 
 load_dotenv()
@@ -52,7 +53,7 @@ def generate_answer(
     question: str,
     results: List[SearchResult],
     client: OpenAI,
-    model: str = "gpt-5",
+    model: str = LLM_MODEL_NAME,
 ) -> str:
     """
     Generate an answer grounded in the retrieved context.

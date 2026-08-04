@@ -5,12 +5,11 @@ from sentence_transformers import SentenceTransformer
 
 from models import Chunk
 
-
-DEFAULT_MODEL_NAME = "all-MiniLM-L6-v2"
+from config import EMBEDDING_MODEL_NAME, CHUNK_SIZE, CHUNK_OVERLAP
 
 
 def load_embedding_model(
-    model_name: str = DEFAULT_MODEL_NAME,
+    model_name: str = EMBEDDING_MODEL_NAME,
 ) -> SentenceTransformer:
     """
     Load a pretrained Sentence Transformer model.
@@ -55,8 +54,8 @@ if __name__ == "__main__":
 
     chunks: List[Chunk] = chunk_pages(
         pages=pages,
-        chunk_size=300,
-        overlap=50,
+        chunk_size=CHUNK_SIZE,
+        overlap=CHUNK_OVERLAP
     )
 
     texts = [chunk.text for chunk in chunks]

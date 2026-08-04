@@ -6,13 +6,15 @@ from sentence_transformers import SentenceTransformer
 from embeddings import embed_texts
 from models import Chunk, SearchResult
 
+from config import TOP_K
+
 
 def retrieve_chunks(
     query: str,
     model: SentenceTransformer,
     index: faiss.Index,
     chunks: List[Chunk],
-    top_k: int = 5,
+    top_k: int = TOP_K,
 ) -> List[SearchResult]:
     """
     Retrieve the most relevant chunks for a query.
@@ -55,7 +57,6 @@ if __name__ == "__main__":
 
     model = load_embedding_model()
     index, chunks = load_vector_store()
-
     query = "Why was FinBERT used for sentiment analysis?"
 
     results = retrieve_chunks(
@@ -63,7 +64,7 @@ if __name__ == "__main__":
         model=model,
         index=index,
         chunks=chunks,
-        top_k=5,
+        top_k=TOP_K,
     )
 
     print(f"Query: {query}")

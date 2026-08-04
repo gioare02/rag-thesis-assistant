@@ -7,6 +7,7 @@ import faiss
 import numpy as np
 
 from models import Chunk
+from config import CHUNK_SIZE, CHUNK_OVERLAP
 
 
 def build_faiss_index(embeddings: np.ndarray) -> faiss.Index:
@@ -105,8 +106,8 @@ if __name__ == "__main__":
 
     chunks = chunk_pages(
         pages=pages,
-        chunk_size=300,
-        overlap=50,
+        chunk_size=CHUNK_SIZE,
+        overlap=CHUNK_OVERLAP,
     )
 
     texts = [chunk.text for chunk in chunks]

@@ -1,7 +1,8 @@
 from typing import List
 from models import Page, Chunk
+from config import CHUNK_SIZE, CHUNK_OVERLAP
 
-def split_text(text: str, chunk_size: int = 300, overlap: int = 50) -> List[str]:
+def split_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> List[str]:
     """
     Split text into overlapping word-based chunks.
     Parameters
@@ -76,8 +77,8 @@ if __name__ == "__main__":
     pages = load_pdf("data/thesis.pdf")
     chunks = chunk_pages(
         pages=pages,
-        chunk_size=300,
-        overlap=50,
+        chunk_size=CHUNK_SIZE,
+        overlap=CHUNK_OVERLAP,
     )
     print(f"Pages: {len(pages)}")
     print(f"Chunks: {len(chunks)}")
