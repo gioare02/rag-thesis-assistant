@@ -1,22 +1,34 @@
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
-class Page:  # risultato di ingest.py
-    document: str
+class Page:
+    document_id: str
+    document_name: str
+    document_type: str
     page: int
     text: str
 
 
 @dataclass
-class Chunk: # risultato del chunking.
+class Chunk:
     chunk_id: int
-    document: str
+
+    document_id: str
+    document_name: str
+    document_type: str
+
     page: int
     text: str
 
+    section: Optional[str] = None
+
+    previous_chunk_id: Optional[int] = None
+    next_chunk_id: Optional[int] = None
+
 
 @dataclass
-class SearchResult: # quello che restituisce il retriever.
+class SearchResult:
     chunk: Chunk
     score: float
