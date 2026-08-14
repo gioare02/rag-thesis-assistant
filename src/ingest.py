@@ -22,6 +22,76 @@ def make_document_id(filename: str) -> str:
     return document_id.strip("_")
 
 
+def extract_section_title(page) -> str | None:
+    """
+    Try to detect the main section title on a PDF page
+    using layout/font-size information from PyMuPDF.
+
+    This is a lightweight heuristic:
+    - short text is more likely to be a heading
+    - larger font is more likely to be a heading
+    """
+
+    page_dict = page.get_text("dict")
+
+    candidates = []
+
+    for block in page_dict.get("blocks", []):
+
+        if "lines" not in block:
+            continue
+
+        for line in block["lines"]:
+
+            for span in line.get("spans", []):
+
+                text = span.get("text", "").strip()
+                font_size = span.get("size", 0)
+
+                if not text:
+                    continue
+
+                # Headings are usually relatively short
+                if len(text.split()) > 12:
+                    continue
+
+                # Ignore page numbers such as "42"
+                if text.isdigit():
+                    continue
+
+                # Ignore common figure/table labels
+                lower_text = text.lower()
+
+                if lower_text.startswith(("figure ", "table ")):
+                    continue
+
+                candidates.append(
+                    {
+                        "text": text,
+                        "size": font_size,
+                    }
+                )
+
+    if not candidates:
+        return None
+
+    max_font_size = max(
+        candidate["size"]
+        for candidate in candidates
+    )
+
+    largest_texts = [
+        candidate["text"]
+        for candidate in candidates
+        if candidate["size"] == max_font_size
+    ]
+
+    if not largest_texts:
+        return None
+
+    return " ".join(largest_texts)
+
+
 def load_pdf(
     pdf_path: str,
     document_type: str,
@@ -29,6 +99,14 @@ def load_pdf(
 ) -> List[Page]:
     """
     Load a PDF and return one Page object for each PDF page.
+
+    Each page keeps:
+    - document id
+    - document name
+    - document type
+    - page number
+    - extracted text
+    - detected section
     """
 
     path = Path(pdf_path)
@@ -43,11 +121,18 @@ def load_pdf(
 
     with fitz.open(path) as pdf:
 
+        current_section = None
+
         for page_number in range(len(pdf)):
 
             page = pdf.load_page(page_number)
 
             text = page.get_text().strip()
+
+            detected_section = extract_section_title(page)
+
+            if detected_section is not None:
+                current_section = detected_section
 
             pages.append(
                 Page(
@@ -56,6 +141,7 @@ def load_pdf(
                     document_type=document_type,
                     page=page_number + 1,
                     text=text,
+                    section=current_section,
                 )
             )
 
@@ -67,7 +153,7 @@ def load_pdfs_from_directory(
     document_type: str,
 ) -> List[Page]:
     """
-    Load all PDF documents from a directory.
+    Load all PDFs contained in a directory.
     """
 
     directory_path = Path(directory)
@@ -94,7 +180,7 @@ def load_knowledge_base(
     papers_directory: str,
 ) -> List[Page]:
     """
-    Load the thesis and uploaded research papers.
+    Load the thesis and all uploaded research papers.
     """
 
     thesis_pages = load_pdfs_from_directory(
@@ -117,8 +203,6 @@ def load_knowledge_base(
     return pages
 
 
-######################### TEST ##########################
-
 if __name__ == "__main__":
 
     pages = load_knowledge_base(
@@ -129,8 +213,13 @@ if __name__ == "__main__":
     print(f"Total pages: {len(pages)}")
     print()
 
-    for page in pages[:3]:
-        print(page)
-        print()
+    for page in pages:
+
+        print(
+            f"Page {page.page:3} | "
+            f"{page.document_name:20} | "
+            f"Type: {page.document_type:7} | "
+            f"Section: {page.section}"
+        )
 
 

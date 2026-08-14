@@ -9,6 +9,7 @@ class Page:
     document_type: str
     page: int
     text: str
+    section: Optional[str] = None
 
 
 @dataclass
