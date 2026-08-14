@@ -1,112 +1,204 @@
-from collections import defaultdict
-from typing import Dict, List
+from typing import List, Optional, Dict
 
-from langchain_core.documents import Document
+import faiss
+from sentence_transformers import SentenceTransformer
 
 from src.models import Chunk, SearchResult
+from src.retriever import retrieve_chunks
+from src.bm25_retriever import retrieve_bm25
+from src.config import TOP_K
 
 
-def fuse_results_rrf(
-    semantic_results: List[SearchResult],
-    lexical_results: List[Document],
-    top_k: int = 5,
-    rrf_constant: int = 60,
+def reciprocal_rank_fusion(
+    result_lists: List[List[SearchResult]],
+    top_k: int = TOP_K,
+    rrf_k: int = 60,
 ) -> List[SearchResult]:
     """
-    Combine FAISS and LangChain BM25 rankings using
-    Reciprocal Rank Fusion.
+    Combine multiple ranked retrieval result lists using
+    Reciprocal Rank Fusion (RRF).
+
+    RRF score:
+
+        score(d) = sum 1 / (rrf_k + rank)
+
+    where the sum is computed across all retrievers
+    that returned the document.
     """
 
     if top_k <= 0:
-        raise ValueError("top_k must be greater than 0")
+        raise ValueError(
+            "top_k must be greater than 0"
+        )
 
-    if rrf_constant <= 0:
-        raise ValueError("rrf_constant must be greater than 0")
+    if rrf_k <= 0:
+        raise ValueError(
+            "rrf_k must be greater than 0"
+        )
 
-    scores: Dict[int, float] = defaultdict(float)
-    chunks_by_id: Dict[int, Chunk] = {}
+    fused_scores: Dict[int, float] = {}
 
-    for rank, result in enumerate(
-        semantic_results,
-        start=1,
-    ):
-        chunk = result.chunk
-        chunk_id = chunk.chunk_id
+    chunk_lookup: Dict[int, Chunk] = {}
 
-        scores[chunk_id] += 1 / (rrf_constant + rank)
-        chunks_by_id[chunk_id] = chunk
+    for results in result_lists:
 
-    for rank, document in enumerate(
-        lexical_results,
-        start=1,
-    ):
-        chunk_id = int(document.metadata["chunk_id"])
+        for rank, result in enumerate(
+            results,
+            start=1,
+        ):
 
-        scores[chunk_id] += 1 / (rrf_constant + rank)
+            chunk_id = result.chunk.chunk_id
 
-        if chunk_id not in chunks_by_id:
-            chunks_by_id[chunk_id] = Chunk(
-                chunk_id=chunk_id,
-                document=str(document.metadata["document"]),
-                page=int(document.metadata["page"]),
-                text=document.page_content,
+            rrf_score = 1.0 / (
+                rrf_k + rank
             )
 
+            if chunk_id not in fused_scores:
+                fused_scores[chunk_id] = 0.0
+
+            fused_scores[chunk_id] += rrf_score
+
+            chunk_lookup[chunk_id] = result.chunk
+
     ranked_chunk_ids = sorted(
-        scores,
-        key=lambda chunk_id: scores[chunk_id],
+        fused_scores,
+        key=fused_scores.get,
         reverse=True,
     )
 
-    return [
-        SearchResult(
-            chunk=chunks_by_id[chunk_id],
-            score=scores[chunk_id],
+    fused_results = []
+
+    for chunk_id in ranked_chunk_ids[:top_k]:
+
+        fused_results.append(
+            SearchResult(
+                chunk=chunk_lookup[chunk_id],
+                score=fused_scores[chunk_id],
+            )
         )
-        for chunk_id in ranked_chunk_ids[:top_k]
-    ]
+
+    return fused_results
 
 
-######################### TEST ##########################
+def hybrid_retrieve(
+    query: str,
+    model: SentenceTransformer,
+    index: faiss.Index,
+    chunks: List[Chunk],
+    top_k: int = TOP_K,
+    document_type: Optional[str] = None,
+    document_ids: Optional[List[str]] = None,
+    per_retriever_k: Optional[int] = None,
+    rrf_k: int = 60,
+) -> List[SearchResult]:
+    """
+    Perform hybrid retrieval using:
 
-if __name__ == "__main__":
-    from src.bm25_retriever import build_bm25_retriever
-    from src.embeddings import load_embedding_model
-    from src.langchain_documents import chunks_to_documents
-    from src.retriever import retrieve_chunks
-    from src.vector_store import load_vector_store
+    1. Dense semantic retrieval with FAISS
+    2. Lexical retrieval with BM25
+    3. Reciprocal Rank Fusion
 
-    index, chunks = load_vector_store()
-    embedding_model = load_embedding_model()
-    documents = chunks_to_documents(chunks)
+    Metadata filters are passed consistently to
+    both retrievers.
+    """
 
-    bm25_retriever = build_bm25_retriever(
-        documents=documents,
-        top_k=10,
-    )
+    if not query.strip():
+        raise ValueError(
+            "query cannot be empty"
+        )
 
-    query = "CONF 0.97 KNN 0.90"
+    if top_k <= 0:
+        raise ValueError(
+            "top_k must be greater than 0"
+        )
 
-    semantic_results = retrieve_chunks(
+    if per_retriever_k is None:
+
+        per_retriever_k = max(
+            top_k * 3,
+            top_k,
+        )
+
+    dense_results = retrieve_chunks(
         query=query,
-        model=embedding_model,
+        model=model,
         index=index,
         chunks=chunks,
-        top_k=10,
+        top_k=per_retriever_k,
+        document_type=document_type,
+        document_ids=document_ids,
     )
 
-    lexical_results = bm25_retriever.invoke(query)
+    bm25_results = retrieve_bm25(
+        query=query,
+        chunks=chunks,
+        top_k=per_retriever_k,
+        document_type=document_type,
+        document_ids=document_ids,
+    )
 
-    hybrid_results = fuse_results_rrf(
-        semantic_results=semantic_results,
-        lexical_results=lexical_results,
+    fused_results = reciprocal_rank_fusion(
+        result_lists=[
+            dense_results,
+            bm25_results,
+        ],
+        top_k=top_k,
+        rrf_k=rrf_k,
+    )
+
+    return fused_results
+
+
+if __name__ == "__main__":
+
+    from src.embeddings import load_embedding_model
+    from src.vector_store import load_vector_store
+
+    model = load_embedding_model()
+
+    index, chunks = load_vector_store()
+
+    query = (
+        "Does sentiment improve short-term "
+        "volatility forecasting?"
+    )
+
+    results = hybrid_retrieve(
+        query=query,
+        model=model,
+        index=index,
+        chunks=chunks,
         top_k=5,
+        document_type="thesis",
     )
 
-    for rank, result in enumerate(hybrid_results, start=1):
+    print(f"Query: {query}")
+    print()
+
+    for rank, result in enumerate(
+        results,
+        start=1,
+    ):
+
+        chunk = result.chunk
+
         print(f"Result {rank}")
-        print(f"RRF score: {result.score:.6f}")
-        print(f"Document: {result.chunk.document}")
-        print(f"Page: {result.chunk.page}")
-        print(result.chunk.text[:500])
+        print(
+            f"RRF score: {result.score:.6f}"
+        )
+        print(
+            f"Document: {chunk.document_name}"
+        )
+        print(
+            f"Type: {chunk.document_type}"
+        )
+        print(
+            f"Page: {chunk.page}"
+        )
+        print(
+            f"Section: {chunk.section}"
+        )
+        print(
+            f"Text: {chunk.text[:500]}"
+        )
         print("-" * 80)
