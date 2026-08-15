@@ -6,6 +6,7 @@ from openai import OpenAI
 
 from src.models import Chunk
 from src.config import LLM_MODEL_NAME
+from src.query_router import route_query
 
 
 load_dotenv()
@@ -59,7 +60,69 @@ def build_context(
         context_blocks
     )
 
+def get_generation_instructions(
+    intent: str,
+) -> str:
+        """
+        Return intent-specific instructions for the final answer.
+        """
 
+        if intent == "FACTUAL":
+
+            return """
+    Answer the question directly.
+
+    Structure:
+    - Give the answer first.
+    - Explain the relevant evidence.
+    - Cite the supporting sources.
+
+    Do not force a comparison if the question does not ask for one.
+    """
+
+        if intent == "COMPARE":
+
+            return """
+    Compare the relevant sources explicitly.
+
+    Structure the answer around:
+    1. What the thesis says.
+    2. What the external paper(s) say.
+    3. Main similarities.
+    4. Main differences.
+    5. A short overall conclusion.
+
+    Do not simply summarize the sources independently.
+    The goal is to make the comparison explicit.
+
+    When evidence is missing from one side, clearly say so.
+    """
+
+        if intent == "VALIDATE":
+
+            return """
+    Evaluate whether the user's claim is supported by the available evidence.
+
+    Structure the answer around:
+    1. The claim being assessed.
+    2. Evidence supporting the claim.
+    3. Evidence contradicting or weakening the claim.
+    4. Final assessment.
+
+    The final assessment must use one of these labels:
+
+    SUPPORTED
+    PARTIALLY SUPPORTED
+    MIXED EVIDENCE
+    CONTRADICTED
+    INSUFFICIENT EVIDENCE
+
+    Do not treat absence of evidence as evidence of contradiction.
+    """
+
+        raise ValueError(
+            f"Unsupported generation intent: {intent}"
+        )
 def generate_answer(
     question: str,
     context_chunks: List[Chunk],
@@ -252,8 +315,8 @@ if __name__ == "__main__":
     # -------------------------
 
     question = (
-        "Does sentiment improve short-term "
-        "volatility forecasting?"
+    "Does sentiment improve short-term "
+    "volatility forecasting?"
     )
 
     # -------------------------
