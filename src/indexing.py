@@ -1,48 +1,94 @@
-from typing import List
-
-from src.chunking import chunk_pages
-from src.config import CHUNK_OVERLAP, CHUNK_SIZE
-from src.embeddings import embed_texts
 from src.ingest import load_knowledge_base
-from src.models import Chunk
-from src.vector_store import build_faiss_index, save_vector_store
+from src.chunking import chunk_pages
+from src.embeddings import (
+    load_embedding_model,
+    embed_chunks,
+)
+from src.vector_store import (
+    build_faiss_index,
+    save_vector_store,
+)
 
 
-def build_vector_store(
-    base_directory: str,
-    upload_directory: str,
-    embedding_model,
-    output_dir: str = "vector_store",
-) -> List[Chunk]:
+def rebuild_index(
+    thesis_directory: str = "data/base",
+    papers_directory: str = "data/uploads",
+    output_directory: str = "vector_store",
+) -> None:
     """
-    Build and save a FAISS vector store using both permanent
-    and uploaded PDF documents.
+    Rebuild the complete knowledge-base index.
+
+    Pipeline:
+        PDFs
+        -> pages
+        -> structure-aware chunks
+        -> embeddings
+        -> FAISS
+        -> persisted metadata
     """
+
+    print("Loading documents...")
 
     pages = load_knowledge_base(
-        base_directory=base_directory,
-        upload_directory=upload_directory,
+        thesis_directory=thesis_directory,
+        papers_directory=papers_directory,
     )
+
+    print(
+        f"Loaded {len(pages)} pages."
+    )
+
+    print("Chunking documents...")
 
     chunks = chunk_pages(
         pages=pages,
-        chunk_size=CHUNK_SIZE,
-        overlap=CHUNK_OVERLAP,
     )
 
-    texts = [chunk.text for chunk in chunks]
+    print(
+        f"Created {len(chunks)} chunks."
+    )
 
-    embeddings = embed_texts(
-        texts=texts,
+    print("Loading embedding model...")
+
+    embedding_model = (
+        load_embedding_model()
+    )
+
+    print("Creating embeddings...")
+
+    embeddings = embed_chunks(
+        chunks=chunks,
         model=embedding_model,
     )
 
-    index = build_faiss_index(embeddings)
+    print(
+        f"Embeddings shape: "
+        f"{embeddings.shape}"
+    )
+
+    print("Building FAISS index...")
+
+    index = build_faiss_index(
+        embeddings
+    )
+
+    print(
+        f"FAISS vectors: "
+        f"{index.ntotal}"
+    )
+
+    print("Saving vector store...")
 
     save_vector_store(
         index=index,
         chunks=chunks,
-        output_dir=output_dir,
+        output_dir=output_directory,
     )
 
-    return chunks
+    print()
+    print("Index rebuild completed.")
+
+
+if __name__ == "__main__":
+
+    rebuild_index()
