@@ -63,53 +63,46 @@ def build_context(
 def get_generation_instructions(
     intent: str,
 ) -> str:
-        """
-        Return intent-specific instructions for the final answer.
-        """
+    """
+    Return generation instructions based on query intent.
+    """
 
-        if intent == "FACTUAL":
-
-            return """
+    if intent == "FACTUAL":
+        return """
     Answer the question directly.
 
-    Structure:
     - Give the answer first.
     - Explain the relevant evidence.
     - Cite the supporting sources.
-
-    Do not force a comparison if the question does not ask for one.
+    - Do not force a comparison.
     """
 
-        if intent == "COMPARE":
-
-            return """
-    Compare the relevant sources explicitly.
+    if intent == "COMPARE":
+        return """
+    Explicitly compare the thesis with the external literature.
 
     Structure the answer around:
     1. What the thesis says.
     2. What the external paper(s) say.
     3. Main similarities.
     4. Main differences.
-    5. A short overall conclusion.
+    5. Overall conclusion.
 
-    Do not simply summarize the sources independently.
-    The goal is to make the comparison explicit.
-
-    When evidence is missing from one side, clearly say so.
+    Do not simply summarize each source independently.
+    If evidence from one side is missing, clearly say so.
     """
 
-        if intent == "VALIDATE":
-
-            return """
+    if intent == "VALIDATE":
+        return """
     Evaluate whether the user's claim is supported by the available evidence.
 
     Structure the answer around:
     1. The claim being assessed.
-    2. Evidence supporting the claim.
-    3. Evidence contradicting or weakening the claim.
+    2. Supporting evidence.
+    3. Contradicting or weakening evidence.
     4. Final assessment.
 
-    The final assessment must use one of these labels:
+    Use exactly one of these final assessment labels:
 
     SUPPORTED
     PARTIALLY SUPPORTED
@@ -120,17 +113,21 @@ def get_generation_instructions(
     Do not treat absence of evidence as evidence of contradiction.
     """
 
-        raise ValueError(
-            f"Unsupported generation intent: {intent}"
-        )
+    raise ValueError(
+        f"Unsupported generation intent: {intent}"
+    )
+
+
 def generate_answer(
     question: str,
     context_chunks: List[Chunk],
     client: OpenAI,
+    intent: str = "FACTUAL",
     model: str = LLM_MODEL_NAME,
 ) -> str:
     """
-    Generate an answer grounded only in the final context.
+    Generate a grounded answer using an
+    intent-specific generation strategy.
     """
 
     if not question.strip():
@@ -148,25 +145,38 @@ def generate_answer(
         context_chunks
     )
 
+    intent_instructions = (
+        get_generation_instructions(
+            intent
+        )
+    )
+
     prompt = f"""
-You are an academic research assistant.
+        You are an academic research assistant.
 
-Answer the user's question using only the retrieved context below.
+        Answer the user's question using ONLY the retrieved context below.
 
-Rules:
-- Do not use external knowledge.
-- If the context is insufficient, clearly say so.
-- Cite relevant evidence using [Source 1], [Source 2], etc.
-- Do not mention retrieval or reranker scores.
-- Distinguish clearly between evidence from the thesis and evidence from external papers when relevant.
-- Keep the answer clear, precise, and concise.
+        General rules:
+        - Do not use external knowledge.
+        - Do not invent facts or evidence.
+        - If the context is insufficient, clearly say so.
+        - Cite relevant evidence using [Source 1], [Source 2], etc.
+        - Do not mention retrieval, RRF, similarity, or reranker scores.
+        - Clearly distinguish evidence from the thesis and evidence from external papers.
+        - Prefer precise statements over broad claims.
 
-Retrieved context:
-{context}
+        Query intent:
+        {intent}
 
-Question:
-{question}
-"""
+        Intent-specific instructions:
+        {intent_instructions}
+
+        Retrieved context:
+        {context}
+
+        User question:
+        {question}
+    """
 
     response = client.responses.create(
         model=model,
@@ -234,27 +244,27 @@ def rewrite_query(
     )
 
     prompt = f"""
-You are the query-rewriting component of an academic retrieval system.
+        You are the query-rewriting component of an academic retrieval system.
 
-Rewrite the user's latest question as a concise standalone search query.
+        Rewrite the user's latest question as a concise standalone search query.
 
-Rules:
-- Preserve the user's original meaning.
-- Resolve references such as "it", "this", "that result",
-  or "the previous method" using the conversation when possible.
-- Do not answer the question.
-- Do not add information that is not present in the conversation.
-- If the latest question is already standalone,
-  return it unchanged or only minimally cleaned up.
+        Rules:
+        - Preserve the user's original meaning.
+        - Resolve references such as "it", "this", "that result",
+        or "the previous method" using the conversation when possible.
+        - Do not answer the question.
+        - Do not add information that is not present in the conversation.
+        - If the latest question is already standalone,
+        return it unchanged or only minimally cleaned up.
 
-Conversation:
-{history_text}
+        Conversation:
+        {history_text}
 
-Latest question:
-{question}
+        Latest question:
+        {question}
 
-Standalone retrieval query:
-"""
+        Standalone retrieval query:
+        """
 
     response = client.responses.create(
         model=model,
