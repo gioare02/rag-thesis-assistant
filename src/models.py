@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
 
 @dataclass
@@ -33,3 +33,12 @@ class Chunk:
 class SearchResult:
     chunk: Chunk
     score: float
+
+
+@dataclass
+
+class QueryRoute:
+    intent: str
+    document_type: Optional[str] = None
+    document_ids: Optional[List[str]] = None
+    reasoning: Optional[str] = None
